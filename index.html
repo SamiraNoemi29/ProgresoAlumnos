@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Alumnos — Club de Robótica</title>
+<title>Alumnos — Taller de Robótica</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap');
 
@@ -206,7 +206,7 @@
       <span class="node-dot"></span>
       <p class="kicker">Corrientes · registro por alumno</p>
     </div>
-    <h1>Alumnos del Club de Robótica</h1>
+    <h1>Alumnos del taller</h1>
     <p class="sub">Qué está construyendo cada chico, en qué etapa va, y una foto de él y de su robot para llevar el registro del año.</p>
   </div>
   <div class="circuit-wrap" aria-hidden="true">
@@ -257,13 +257,13 @@
       <button class="btn-primary" id="btnSave">Guardar alumno</button>
       <button class="btn-ghost" id="btnCancel">Cancelar</button>
     </div>
-    <p class="hint">Las fotos se cargan después, desde la propia tarjeta del alumno. Todo se guarda solo en este dispositivo.</p>
+    <p class="hint">Las fotos se cargan después, desde la propia tarjeta del alumno. Todo se guarda en el sitio.</p>
   </div>
 
   <div id="sections"></div>
 </main>
 
-<footer>@copyright - Samira Ojeda</footer>
+<footer>Alumnos — Taller de Robótica. Las fotos y el progreso se guardan en el sitio, no en el dispositivo.</footer>
 
 <script>
 (function(){
@@ -282,8 +282,8 @@
 
   const DAY_ORDER = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
 
+  let dbNS = null, assetsNS = null;
   let students = [];
-  let photoMap = {}; // { studentId: { alumno: dataURL|null, robot: dataURL|null } }
   let activeFilter = "Todos";
   let saveTimers = {};
 
@@ -294,7 +294,6 @@
   const fGroup = document.getElementById('f-group');
   const fCustomWrap = document.getElementById('f-custom-wrap');
 
-  // populate group select
   GROUPS.forEach(g=>{
     const opt = document.createElement('option');
     opt.value = g.key;
@@ -309,60 +308,47 @@
     fCustomWrap.style.display = fGroup.value === 'otro' ? 'block' : 'none';
   });
 
-  function uid(){ return 's-' + Math.random().toString(36).slice(2,9); }
+  function photoUrl(id){ return id ? ('/_blob/' + id) : null; }
 
-  async function loadStudents(){
+  async function initCapabilities(){
+    try{ dbNS = await window.claude.use('db'); }catch(e){ dbNS = null; }
+    try{ assetsNS = await window.claude.use('assets'); }catch(e){ assetsNS = null; }
+  }
+
+  async function loadStudentsFromDb(){
+    if(!dbNS) return [];
     try{
-      const res = await window.storage.get('students-list', false);
-      if(res && res.value) return JSON.parse(res.value);
-    }catch(e){ /* todavía no hay alumnos */ }
-    return [];
+      const snap = await dbNS.collection('students').get();
+      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    }catch(e){ console.error(e); return []; }
   }
 
-  async function persistStudents(){
-    try{
-      await window.storage.set('students-list', JSON.stringify(students), false);
-    }catch(e){ console.error('No se pudo guardar la lista de alumnos', e); }
+  async function addStudentDoc(data){
+    const ref = await dbNS.collection('students').add(data);
+    return ref.id;
+  }
+  async function updateStudentDoc(id, patch){
+    if(!dbNS) return;
+    try{ await dbNS.doc('students/'+id).update(patch); }catch(e){ console.error(e); }
+  }
+  async function deleteStudentDoc(id){
+    if(!dbNS) return;
+    try{ await dbNS.doc('students/'+id).delete(); }catch(e){ console.error(e); }
   }
 
-  async function loadPhoto(id, kind){
-    try{
-      const res = await window.storage.get(`photo:${id}:${kind}`, false);
-      return res ? res.value : null;
-    }catch(e){ return null; }
-  }
-
-  async function preloadPhotos(){
-    const tasks = [];
-    students.forEach(s=>{
-      photoMap[s.id] = photoMap[s.id] || { alumno: null, robot: null };
-      if(s.hasAlumnoPhoto && !photoMap[s.id].alumno){
-        tasks.push(loadPhoto(s.id,'alumno').then(v=> photoMap[s.id].alumno = v));
-      }
-      if(s.hasRobotPhoto && !photoMap[s.id].robot){
-        tasks.push(loadPhoto(s.id,'robot').then(v=> photoMap[s.id].robot = v));
-      }
-    });
-    await Promise.all(tasks);
-  }
-
-  function compressImage(file, maxDim, quality){
+  function compressImageToBlob(file, maxDim, quality){
     return new Promise((resolve, reject)=>{
       const reader = new FileReader();
       reader.onload = ()=>{
         const img = new Image();
         img.onload = ()=>{
           let { width, height } = img;
-          if(width > height && width > maxDim){
-            height = Math.round(height * (maxDim / width)); width = maxDim;
-          } else if(height > maxDim){
-            width = Math.round(width * (maxDim / height)); height = maxDim;
-          }
+          if(width > height && width > maxDim){ height = Math.round(height*(maxDim/width)); width = maxDim; }
+          else if(height > maxDim){ width = Math.round(width*(maxDim/height)); height = maxDim; }
           const canvas = document.createElement('canvas');
           canvas.width = width; canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          ctx.drawImage(img, 0, 0, width, height);
-          resolve(canvas.toDataURL('image/jpeg', quality));
+          canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+          canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('toBlob failed')), 'image/jpeg', quality);
         };
         img.onerror = reject;
         img.src = reader.result;
@@ -388,7 +374,7 @@
     let conFoto = 0, enArmado = 0, listos = 0;
     students.forEach(s=>{
       const stageName = s.stages[s.current];
-      if(photoMap[s.id] && (photoMap[s.id].alumno || photoMap[s.id].robot)) conFoto++;
+      if(s.alumnoPhotoId || s.robotPhotoId) conFoto++;
       if(isFirstStage(stageName)) enArmado++;
       if(s.current === s.stages.length - 1) listos++;
     });
@@ -451,7 +437,6 @@
   }
 
   function cardHTML(s){
-    const photos = photoMap[s.id] || {};
     return `
       <div class="card day-${s.day}" data-id="${s.id}">
         <div class="card-view">
@@ -464,8 +449,8 @@
           </div>
 
           <div class="photo-pair">
-            ${photoBoxHTML(s.id, 'alumno', 'Foto del alumno', photos.alumno)}
-            ${photoBoxHTML(s.id, 'robot', 'Foto del robot', photos.robot)}
+            ${photoBoxHTML(s.id, 'alumno', 'Foto del alumno', photoUrl(s.alumnoPhotoId))}
+            ${photoBoxHTML(s.id, 'robot', 'Foto del robot', photoUrl(s.robotPhotoId))}
           </div>
 
           <div class="stage-rail">${stageRailHTML(s)}</div>
@@ -518,7 +503,7 @@
         if(!s) return;
         s.current = idx;
         s.updatedAt = new Date().toISOString();
-        persistStudents();
+        updateStudentDoc(sid, { current: idx, updatedAt: s.updatedAt });
         renderStats();
         renderSections();
       });
@@ -533,7 +518,7 @@
         clearTimeout(saveTimers[sid]);
         saveTimers[sid] = setTimeout(()=>{
           s.updatedAt = new Date().toISOString();
-          persistStudents();
+          updateStudentDoc(sid, { notes: s.notes, updatedAt: s.updatedAt });
         }, 500);
       });
     });
@@ -542,19 +527,20 @@
       input.addEventListener('change', async (e)=>{
         const file = e.target.files[0];
         if(!file) return;
+        if(!assetsNS || !dbNS){ alert('No se pudo conectar con el almacenamiento de este sitio.'); return; }
         const sid = input.dataset.sid;
         const kind = input.dataset.kind;
         const s = students.find(x=>x.id===sid);
         if(!s) return;
+        const field = kind === 'alumno' ? 'alumnoPhotoId' : 'robotPhotoId';
         try{
-          const dataUrl = await compressImage(file, 480, 0.72);
-          await window.storage.set(`photo:${sid}:${kind}`, dataUrl, false);
-          photoMap[sid] = photoMap[sid] || { alumno:null, robot:null };
-          photoMap[sid][kind] = dataUrl;
-          if(kind === 'alumno') s.hasAlumnoPhoto = true;
-          if(kind === 'robot') s.hasRobotPhoto = true;
+          const blob = await compressImageToBlob(file, 480, 0.72);
+          const result = await assetsNS.upload(blob, { type: 'image/jpeg' });
+          const oldId = s[field];
+          s[field] = result.id;
           s.updatedAt = new Date().toISOString();
-          await persistStudents();
+          await updateStudentDoc(sid, { [field]: result.id, updatedAt: s.updatedAt });
+          if(oldId) assetsNS.delete(oldId).catch(()=>{});
           renderStats();
           renderSections();
         }catch(err){
@@ -570,12 +556,12 @@
         const kind = btn.dataset.kind;
         const s = students.find(x=>x.id===sid);
         if(!s) return;
-        try{ await window.storage.delete(`photo:${sid}:${kind}`, false); }catch(e){}
-        if(photoMap[sid]) photoMap[sid][kind] = null;
-        if(kind === 'alumno') s.hasAlumnoPhoto = false;
-        if(kind === 'robot') s.hasRobotPhoto = false;
+        const field = kind === 'alumno' ? 'alumnoPhotoId' : 'robotPhotoId';
+        const oldId = s[field];
+        s[field] = null;
         s.updatedAt = new Date().toISOString();
-        await persistStudents();
+        await updateStudentDoc(sid, { [field]: null, updatedAt: s.updatedAt });
+        if(oldId && assetsNS) assetsNS.delete(oldId).catch(()=>{});
         renderStats();
         renderSections();
       });
@@ -587,11 +573,10 @@
         const s = students.find(x=>x.id===sid);
         if(!s) return;
         if(confirm(`¿Eliminar a ${s.name} del registro?`)){
-          try{ await window.storage.delete(`photo:${sid}:alumno`, false); }catch(e){}
-          try{ await window.storage.delete(`photo:${sid}:robot`, false); }catch(e){}
-          delete photoMap[sid];
+          if(s.alumnoPhotoId && assetsNS) assetsNS.delete(s.alumnoPhotoId).catch(()=>{});
+          if(s.robotPhotoId && assetsNS) assetsNS.delete(s.robotPhotoId).catch(()=>{});
+          await deleteStudentDoc(sid);
           students = students.filter(x=>x.id!==sid);
-          await persistStudents();
           renderAll();
         }
       });
@@ -635,20 +620,18 @@
       s.grupo = cardEl.querySelector('.e-grupo').value.trim();
       s.proyecto = cardEl.querySelector('.e-proyecto').value.trim();
       s.updatedAt = new Date().toISOString();
-      await persistStudents();
+      await updateStudentDoc(sid, { name: s.name, day: s.day, grupo: s.grupo, proyecto: s.proyecto, updatedAt: s.updatedAt });
       renderAll();
     });
     cardEl.querySelector('.e-cancel').addEventListener('click', renderSections);
   }
 
-  async function renderAll(){
-    await preloadPhotos();
+  function renderAll(){
     renderStats();
     renderFilters();
     renderSections();
   }
 
-  // ---- add panel ----
   const btnAdd = document.getElementById('btnAdd');
   btnAdd.addEventListener('click', ()=> addPanel.classList.toggle('open'));
   document.getElementById('btnCancel').addEventListener('click', ()=>{ addPanel.classList.remove('open'); clearForm(); });
@@ -665,6 +648,7 @@
     const name = document.getElementById('f-name').value.trim();
     const trabajo = document.getElementById('f-trabajo').value.trim();
     if(!name){ alert('Completá el nombre del alumno.'); return; }
+    if(!dbNS){ alert('No se pudo conectar con el almacenamiento de este sitio.'); return; }
 
     let day, grupo, proyecto, tipo;
     if(fGroup.value === 'otro'){
@@ -679,28 +663,40 @@
     }
     proyecto = trabajo || (GROUPS.find(x=>x.key===fGroup.value)?.proyecto) || 'Sin especificar';
 
-    students.push({
-      id: uid(),
+    const data = {
       name, day, grupo, proyecto,
       stages: STAGE_SETS[tipo] || STAGE_SETS.kit,
       current: 0,
       notes: '',
-      hasAlumnoPhoto: false,
-      hasRobotPhoto: false,
+      alumnoPhotoId: null,
+      robotPhotoId: null,
       updatedAt: new Date().toISOString()
-    });
-    await persistStudents();
-    addPanel.classList.remove('open');
-    clearForm();
-    renderAll();
+    };
+
+    try{
+      const id = await addStudentDoc(data);
+      students.push({ id, ...data });
+      addPanel.classList.remove('open');
+      clearForm();
+      renderAll();
+    }catch(e){
+      console.error(e);
+      alert('No se pudo guardar el alumno. Probá de nuevo.');
+    }
   });
 
-  // ---- init ----
   (async function init(){
-    students = await loadStudents();
+    await initCapabilities();
+    if(!dbNS){
+      sectionsEl.innerHTML = `<div class="empty-state">No se pudo conectar con el almacenamiento de este sitio. Abrí este sitio desde tu cuenta de Claude para que los datos se guarden.</div>`;
+      renderStats();
+      return;
+    }
+    students = await loadStudentsFromDb();
     renderAll();
   })();
 })();
+
 </script>
 </body>
 </html>
