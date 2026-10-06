@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alumnos — Club de Robótica</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap');
+
+  :root{
+    --bg-base: #16283D;
+    --bg-panel: #1D3350;
+    --bg-panel-raised: #234066;
+    --paper: #EFEDE4;
+    --paper-dim: #E3E0D2;
+    --ink: #16212F;
+    --ink-soft: #4A5568;
+    --line: rgba(239,237,228,0.14);
+    --line-soft: rgba(22,33,47,0.10);
+    --amber: #F2A93B;
+    --amber-soft: rgba(242,169,59,0.18);
+    --teal: #4FAF93;
+    --teal-soft: rgba(79,175,147,0.18);
+    --violet: #9384E8;
+    --violet-soft: rgba(147,132,232,0.18);
+    --slate: #7C8CA6;
+    --danger: #D9694F;
+    --radius-card: 10px;
+    --radius-chip: 6px;
+    --font-head: 'Space Grotesk', sans-serif;
+    --font-body: 'Inter', sans-serif;
+  }
+
+  *{ box-sizing: border-box; }
+  html{ scroll-behavior: smooth; }
+  body{
+    margin:0;
+    background: var(--bg-base);
+    color: var(--paper);
+    font-family: var(--font-body);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1,h2,h3{ font-family: var(--font-head); margin:0; }
+  button{ font-family: var(--font-body); }
+  :focus-visible{ outline: 2px solid var(--amber); outline-offset: 2px; }
+
+  /* ---------- HERO ---------- */
+  .hero{
+    position: relative;
+    overflow: hidden;
+    padding: 64px 24px 40px;
+    background:
+      linear-gradient(180deg, rgba(22,40,61,0) 0%, var(--bg-base) 92%),
+      repeating-linear-gradient(0deg, var(--line) 0 1px, transparent 1px 44px),
+      repeating-linear-gradient(90deg, var(--line) 0 1px, transparent 1px 44px);
+    background-color: var(--bg-base);
+    border-bottom: 1px solid var(--line);
+  }
+  .hero-inner{ max-width: 1040px; margin: 0 auto; position: relative; z-index: 2; }
+  .hero-eyebrow-row{ display:flex; align-items:center; gap:10px; margin-bottom: 18px; }
+  .node-dot{ width:9px; height:9px; border-radius:50%; background: var(--amber); box-shadow: 0 0 0 4px var(--amber-soft); }
+  .hero p.kicker{ font-size: 14px; color: var(--slate); margin:0; letter-spacing: 0.01em; }
+  .hero h1{ font-size: clamp(32px, 5vw, 50px); font-weight: 700; max-width: 16ch; line-height: 1.08; letter-spacing: -0.01em; }
+  .hero .sub{ margin-top: 16px; max-width: 54ch; color: #C9D2DD; font-size: 16.5px; }
+
+  .circuit-wrap{ position:absolute; top:0; right:-40px; bottom:0; width: 46%; min-width: 320px; z-index:1; opacity: 0.9; pointer-events:none; }
+  .circuit-wrap svg{ width:100%; height:100%; }
+  .circuit-line{ fill:none; stroke: var(--amber); stroke-width: 2; stroke-linecap: round; stroke-dasharray: 8 10; animation: dash-flow 5s linear infinite; opacity: 0.85; }
+  .circuit-line.alt{ stroke: var(--teal); animation-duration: 7s; opacity: 0.6; }
+  .circuit-node{ fill: var(--bg-base); stroke: var(--paper); stroke-width: 1.5; }
+  @keyframes dash-flow{ to{ stroke-dashoffset: -180; } }
+  @media (prefers-reduced-motion: reduce){ .circuit-line{ animation: none; } }
+  @media (max-width: 760px){ .circuit-wrap{ display:none; } }
+
+  /* ---------- STATS ---------- */
+  .stats{ max-width: 1040px; margin: -14px auto 0; padding: 0 24px; position: relative; z-index: 3; display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+  .stat-card{ background: var(--bg-panel); border: 1px solid var(--line); border-radius: var(--radius-card); padding: 16px 18px; }
+  .stat-num{ font-family: var(--font-head); font-size: 28px; font-weight: 700; }
+  .stat-label{ font-size: 13px; color: var(--slate); margin-top: 2px; }
+  @media (max-width: 700px){ .stats{ grid-template-columns: repeat(2,1fr); } }
+
+  /* ---------- MAIN ---------- */
+  main{ max-width: 1040px; margin: 0 auto; padding: 40px 24px 100px; }
+
+  .toolbar{ display:flex; align-items:center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 28px; }
+  .filters{ display:flex; gap:8px; flex-wrap:wrap; }
+  .chip{ background: transparent; border: 1px solid var(--line); color: var(--paper); padding: 7px 14px; border-radius: 999px; font-size: 14px; cursor: pointer; transition: background .15s, border-color .15s; }
+  .chip:hover{ border-color: var(--amber); }
+  .chip.active{ background: var(--paper); color: var(--ink); border-color: var(--paper); font-weight: 600; }
+  .btn-primary{ background: var(--amber); color: var(--ink); border: none; padding: 10px 18px; border-radius: var(--radius-chip); font-weight: 600; font-size: 14px; cursor: pointer; transition: filter .15s, transform .1s; }
+  .btn-primary:hover{ filter: brightness(1.08); }
+  .btn-primary:active{ transform: translateY(1px); }
+  .btn-ghost{ background: transparent; border: 1px solid var(--line); color: var(--paper); padding: 9px 14px; border-radius: var(--radius-chip); font-size: 13.5px; cursor: pointer; }
+  .btn-ghost:hover{ border-color: var(--paper); }
+  .btn-text{ background:none; border:none; color: var(--slate); font-size: 13px; cursor:pointer; padding: 4px 0; text-decoration: underline; text-underline-offset: 3px; }
+  .btn-text:hover{ color: var(--paper); }
+  .btn-text.danger{ color: var(--danger); }
+
+  /* ---------- GROUP SECTION ---------- */
+  .day-section{ margin-bottom: 40px; }
+  .day-heading{ display:flex; align-items:baseline; gap:10px; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+  .day-heading h2{ font-size: 20px; font-weight: 600; }
+  .day-heading .count{ color: var(--slate); font-size: 14px; }
+
+  .cards-grid{ display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+
+  /* ---------- STUDENT CARD ---------- */
+  .card{ background: var(--paper); color: var(--ink); border-radius: var(--radius-card); padding: 18px 18px 16px; display:flex; flex-direction: column; gap: 14px; border-top: 3px solid var(--slate); }
+  .card.day-Lunes{ border-top-color: var(--amber); }
+  .card.day-Martes{ border-top-color: var(--teal); }
+  .card.day-Viernes{ border-top-color: var(--violet); }
+
+  .card-head{ display:flex; justify-content: space-between; gap: 10px; }
+  .card-head h3{ font-size: 17px; font-weight: 700; }
+  .card-meta{ font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
+
+  .day-tag{ font-size: 11.5px; padding: 3px 9px; border-radius: 999px; height: fit-content; white-space: nowrap; font-weight: 600; background: var(--line-soft); color: var(--ink-soft); }
+  .day-tag.day-Lunes{ background: var(--amber-soft); color: #8A5A0E; }
+  .day-tag.day-Martes{ background: var(--teal-soft); color: #276350; }
+  .day-tag.day-Viernes{ background: var(--violet-soft); color: #4E3FA8; }
+
+  /* photo pair */
+  .photo-pair{ display:grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .photo-slot{ display:flex; flex-direction:column; gap: 6px; }
+  .photo-slot .slot-label{ font-size: 11.5px; color: var(--ink-soft); font-weight: 500; }
+  .photo-box{
+    position: relative;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--paper-dim);
+    border: 1px solid rgba(22,33,47,0.12);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .photo-box img{ width:100%; height:100%; object-fit: cover; display:block; }
+  .photo-placeholder{ color: #9AA6B8; display:flex; flex-direction:column; align-items:center; gap:4px; font-size: 11px; }
+  .photo-placeholder svg{ width: 26px; height: 26px; opacity: 0.6; }
+  .photo-upload-btn{
+    position:absolute; bottom:6px; right:6px;
+    background: rgba(22,33,47,0.72);
+    color: var(--paper);
+    border: none; border-radius: 6px;
+    font-size: 11px; padding: 5px 8px;
+    cursor:pointer;
+  }
+  .photo-upload-btn:hover{ background: rgba(22,33,47,0.9); }
+  .photo-remove-btn{
+    position:absolute; top:6px; right:6px;
+    background: rgba(217,105,79,0.88);
+    color: white; border:none; border-radius: 6px;
+    font-size: 11px; width: 20px; height: 20px;
+    line-height: 1; cursor:pointer;
+  }
+  input[type="file"]{ display:none; }
+
+  /* stage rail */
+  .stage-rail{ display:flex; align-items:flex-start; overflow-x: auto; padding-bottom: 4px; margin: 4px -2px 0; }
+  .stage-step{ display:flex; flex-direction: column; align-items:center; flex: 1 0 60px; min-width: 60px; position: relative; cursor: pointer; padding-top: 2px; background:none; border:none; }
+  .stage-step .rail-line{ position:absolute; top: 12px; left: -50%; width: 100%; height: 2px; background: var(--line-soft); z-index: 0; }
+  .stage-step:first-child .rail-line{ display:none; }
+  .stage-step.done .rail-line{ background: var(--teal); }
+  .stage-dot{ width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--slate); background: var(--paper); z-index: 1; display:flex; align-items:center; justify-content:center; font-size: 11px; font-weight: 700; color: var(--ink-soft); transition: background .15s, border-color .15s, transform .1s; }
+  .stage-step:hover .stage-dot{ transform: scale(1.08); }
+  .stage-step.done .stage-dot{ background: var(--teal); border-color: var(--teal); color: white; }
+  .stage-step.current .stage-dot{ background: var(--amber); border-color: var(--amber); color: var(--ink); box-shadow: 0 0 0 4px var(--amber-soft); }
+  .stage-label{ font-size: 10.5px; color: var(--ink-soft); margin-top: 6px; text-align:center; max-width: 72px; line-height: 1.2; }
+  .stage-step.current .stage-label{ color: var(--ink); font-weight: 600; }
+
+  .notes-block label{ display:block; font-size: 12.5px; color: var(--ink-soft); margin-bottom: 5px; font-weight: 500; }
+  textarea.notes{ width: 100%; min-height: 50px; resize: vertical; background: var(--paper-dim); border: 1px solid rgba(22,33,47,0.14); border-radius: 7px; padding: 8px 10px; font-family: var(--font-body); font-size: 13.5px; color: var(--ink); }
+  textarea.notes:focus{ outline: 2px solid var(--amber); outline-offset: 1px; }
+
+  .card-foot{ display:flex; justify-content: space-between; align-items:center; font-size: 12px; color: var(--ink-soft); padding-top: 10px; border-top: 1px solid rgba(22,33,47,0.1); }
+  .card-foot .actions{ display:flex; gap: 12px; }
+
+  .edit-grid{ display:grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .edit-grid label{ font-size: 11.5px; color: var(--ink-soft); display:block; margin-bottom: 3px; }
+  .edit-grid input, .edit-grid select{ width:100%; padding: 6px 8px; font-size: 13.5px; border: 1px solid rgba(22,33,47,0.18); border-radius: 6px; background: white; color: var(--ink); font-family: var(--font-body); }
+  .edit-grid .full{ grid-column: 1 / -1; }
+  .edit-actions{ display:flex; gap:8px; margin-top: 4px; }
+
+  /* ---------- ADD PANEL ---------- */
+  .add-panel{ background: var(--bg-panel); border: 1px solid var(--line); border-radius: var(--radius-card); padding: 20px; margin-top: 8px; display:none; }
+  .add-panel.open{ display:block; }
+  .add-panel h3{ font-size: 16px; margin-bottom: 14px; }
+  .add-grid{ display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .add-grid .full{ grid-column: 1 / -1; }
+  .add-grid label{ display:block; font-size: 12.5px; color: var(--slate); margin-bottom: 5px; }
+  .add-grid input, .add-grid select{ width:100%; padding: 9px 10px; font-size: 14px; border: 1px solid var(--line); border-radius: 7px; background: var(--bg-panel-raised); color: var(--paper); font-family: var(--font-body); }
+  .add-grid input::placeholder{ color: #7C8CA6; }
+  .add-actions{ display:flex; gap:10px; margin-top: 16px; }
+  .hint{ font-size: 12px; color: var(--slate); margin-top: 6px; }
+
+  .empty-state{ text-align:center; padding: 40px 20px; color: var(--slate); border: 1px dashed var(--line); border-radius: var(--radius-card); }
+
+  footer{ text-align:center; color: var(--slate); font-size: 12.5px; padding: 20px 24px 40px; }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-inner">
+    <div class="hero-eyebrow-row">
+      <span class="node-dot"></span>
+      <p class="kicker">Corrientes · registro por alumno</p>
+    </div>
+    <h1>Alumnos del Club de Robótica</h1>
+    <p class="sub">Qué está construyendo cada chico, en qué etapa va, y una foto de él y de su robot para llevar el registro del año.</p>
+  </div>
+  <div class="circuit-wrap" aria-hidden="true">
+    <svg viewBox="0 0 400 320" preserveAspectRatio="xMidYMid meet">
+      <path class="circuit-line" d="M20,260 L110,260 L110,180 L200,180 L200,60 L340,60" />
+      <path class="circuit-line alt" d="M40,40 L40,120 L150,120 L150,220 L280,220 L280,300 L360,300" />
+      <circle class="circuit-node" cx="20" cy="260" r="5"/>
+      <circle class="circuit-node" cx="110" cy="180" r="5"/>
+      <circle class="circuit-node" cx="200" cy="60" r="5"/>
+      <circle class="circuit-node" cx="340" cy="60" r="5"/>
+      <circle class="circuit-node" cx="40" cy="40" r="5"/>
+      <circle class="circuit-node" cx="150" cy="220" r="5"/>
+      <circle class="circuit-node" cx="280" cy="300" r="5"/>
+      <circle class="circuit-node" cx="360" cy="300" r="5"/>
+    </svg>
+  </div>
+</div>
+
+<div class="stats" id="stats"></div>
+
+<main>
+  <div class="toolbar">
+    <div class="filters" id="filters"></div>
+    <button class="btn-primary" id="btnAdd">Agregar alumno</button>
+  </div>
+
+  <div class="add-panel" id="addPanel">
+    <h3>Nuevo alumno</h3>
+    <div class="add-grid">
+      <div>
+        <label for="f-name">Nombre del alumno</label>
+        <input id="f-name" placeholder="Ej: Mateo Gómez">
+      </div>
+      <div>
+        <label for="f-group">Grupo</label>
+        <select id="f-group"></select>
+      </div>
+      <div class="full" id="f-custom-wrap" style="display:none;">
+        <label for="f-custom-name">Nombre del grupo (personalizado)</label>
+        <input id="f-custom-name" placeholder="Ej: Viernes — Grupo nuevo">
+      </div>
+      <div class="full">
+        <label for="f-trabajo">Qué está construyendo</label>
+        <input id="f-trabajo" placeholder="Ej: Robot de Competencia — Mini Sumo">
+      </div>
+    </div>
+    <div class="add-actions">
+      <button class="btn-primary" id="btnSave">Guardar alumno</button>
+      <button class="btn-ghost" id="btnCancel">Cancelar</button>
+    </div>
+    <p class="hint">Las fotos se cargan después, desde la propia tarjeta del alumno. Todo se guarda solo en este dispositivo.</p>
+  </div>
+
+  <div id="sections"></div>
+</main>
+
+<footer>@copyright - Samira Ojeda</footer>
+
+<script>
+(function(){
+  const STAGE_SETS = {
+    kit: ["Armado", "Conexionado", "Programación", "Prueba y juego"],
+    competencia: ["Diseño y armado", "Conexionado", "Programación", "Ajustes y pruebas", "Lista para competir"]
+  };
+
+  const GROUPS = [
+    { key: "lun-astro",   day: "Lunes",   grupo: "Astronautas", proyecto: "Kit de Iniciación Educabot",            tipo: "kit" },
+    { key: "lun-genios",  day: "Lunes",   grupo: "Genios",      proyecto: "Robot de Competencia",                   tipo: "competencia" },
+    { key: "mar-genios",  day: "Martes",  grupo: "Genios",      proyecto: "Robot de Competencia — Futbolito",       tipo: "competencia" },
+    { key: "vie-medium",  day: "Viernes", grupo: "Medium",      proyecto: "Robot de Competencia — Mini Sumo",       tipo: "competencia" },
+    { key: "vie-genios",  day: "Viernes", grupo: "Genios",      proyecto: "Kit de Robótica Educabot",               tipo: "kit" },
+  ];
+
+  const DAY_ORDER = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
+
+  let students = [];
+  let photoMap = {}; // { studentId: { alumno: dataURL|null, robot: dataURL|null } }
+  let activeFilter = "Todos";
+  let saveTimers = {};
+
+  const sectionsEl = document.getElementById('sections');
+  const statsEl = document.getElementById('stats');
+  const filtersEl = document.getElementById('filters');
+  const addPanel = document.getElementById('addPanel');
+  const fGroup = document.getElementById('f-group');
+  const fCustomWrap = document.getElementById('f-custom-wrap');
+
+  // populate group select
+  GROUPS.forEach(g=>{
+    const opt = document.createElement('option');
+    opt.value = g.key;
+    opt.textContent = `${g.day} — ${g.grupo} (${g.proyecto})`;
+    fGroup.appendChild(opt);
+  });
+  const otherOpt = document.createElement('option');
+  otherOpt.value = 'otro';
+  otherOpt.textContent = 'Otro grupo (personalizado)';
+  fGroup.appendChild(otherOpt);
+  fGroup.addEventListener('change', ()=>{
+    fCustomWrap.style.display = fGroup.value === 'otro' ? 'block' : 'none';
+  });
+
+  function uid(){ return 's-' + Math.random().toString(36).slice(2,9); }
+
+  async function loadStudents(){
+    try{
+      const res = await window.storage.get('students-list', false);
+      if(res && res.value) return JSON.parse(res.value);
+    }catch(e){ /* todavía no hay alumnos */ }
+    return [];
+  }
+
+  async function persistStudents(){
+    try{
+      await window.storage.set('students-list', JSON.stringify(students), false);
+    }catch(e){ console.error('No se pudo guardar la lista de alumnos', e); }
+  }
+
+  async function loadPhoto(id, kind){
+    try{
+      const res = await window.storage.get(`photo:${id}:${kind}`, false);
+      return res ? res.value : null;
+    }catch(e){ return null; }
+  }
+
+  async function preloadPhotos(){
+    const tasks = [];
+    students.forEach(s=>{
+      photoMap[s.id] = photoMap[s.id] || { alumno: null, robot: null };
+      if(s.hasAlumnoPhoto && !photoMap[s.id].alumno){
+        tasks.push(loadPhoto(s.id,'alumno').then(v=> photoMap[s.id].alumno = v));
+      }
+      if(s.hasRobotPhoto && !photoMap[s.id].robot){
+        tasks.push(loadPhoto(s.id,'robot').then(v=> photoMap[s.id].robot = v));
+      }
+    });
+    await Promise.all(tasks);
+  }
+
+  function compressImage(file, maxDim, quality){
+    return new Promise((resolve, reject)=>{
+      const reader = new FileReader();
+      reader.onload = ()=>{
+        const img = new Image();
+        img.onload = ()=>{
+          let { width, height } = img;
+          if(width > height && width > maxDim){
+            height = Math.round(height * (maxDim / width)); width = maxDim;
+          } else if(height > maxDim){
+            width = Math.round(width * (maxDim / height)); height = maxDim;
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width; canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = reject;
+        img.src = reader.result;
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  }
+
+  function fmtDate(iso){
+    if(!iso) return 'Sin actividad registrada';
+    const d = new Date(iso);
+    return 'Actualizado ' + d.toLocaleDateString('es-AR', { day:'numeric', month:'short' });
+  }
+  function isFirstStage(name){ return /armado|diseño/i.test(name); }
+  function isProgStage(name){ return /program/i.test(name); }
+  function escapeHtml(str){
+    return String(str).replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
+  }
+
+  function computeStats(){
+    const total = students.length;
+    let conFoto = 0, enArmado = 0, listos = 0;
+    students.forEach(s=>{
+      const stageName = s.stages[s.current];
+      if(photoMap[s.id] && (photoMap[s.id].alumno || photoMap[s.id].robot)) conFoto++;
+      if(isFirstStage(stageName)) enArmado++;
+      if(s.current === s.stages.length - 1) listos++;
+    });
+    return [
+      { num: total, label: 'Alumnos registrados' },
+      { num: conFoto, label: 'Con fotos cargadas' },
+      { num: enArmado, label: 'En armado' },
+      { num: listos, label: 'Robots listos' }
+    ];
+  }
+
+  function renderStats(){
+    statsEl.innerHTML = computeStats().map(s => `
+      <div class="stat-card">
+        <div class="stat-num">${s.num}</div>
+        <div class="stat-label">${s.label}</div>
+      </div>
+    `).join('');
+  }
+
+  function renderFilters(){
+    const daysPresent = [...new Set(students.map(s=>s.day))].sort((a,b)=> DAY_ORDER.indexOf(a) - DAY_ORDER.indexOf(b));
+    const all = ["Todos", ...daysPresent];
+    filtersEl.innerHTML = all.map(d => `<button class="chip ${activeFilter===d?'active':''}" data-day="${d}">${d}</button>`).join('');
+    filtersEl.querySelectorAll('.chip').forEach(btn=>{
+      btn.addEventListener('click', ()=>{ activeFilter = btn.dataset.day; renderSections(); });
+    });
+  }
+
+  function stageRailHTML(s){
+    return s.stages.map((label, i) => {
+      const done = i < s.current;
+      const current = i === s.current;
+      return `
+        <button class="stage-step ${done?'done':''} ${current?'current':''}" data-sid="${s.id}" data-stage="${i}" title="Marcar como etapa actual: ${label}">
+          <span class="rail-line" aria-hidden="true"></span>
+          <span class="stage-dot">${done ? '✓' : (i+1)}</span>
+          <span class="stage-label">${label}</span>
+        </button>`;
+    }).join('');
+  }
+
+  const cameraIcon = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z"/><circle cx="12" cy="13.5" r="3.4"/></svg>`;
+
+  function photoBoxHTML(sid, kind, label, dataUrl){
+    return `
+      <div class="photo-slot">
+        <span class="slot-label">${label}</span>
+        <div class="photo-box">
+          ${dataUrl
+            ? `<img src="${dataUrl}" alt="${label}">`
+            : `<div class="photo-placeholder">${cameraIcon}<span>Sin foto</span></div>`}
+          <label class="photo-upload-btn">
+            ${dataUrl ? 'Cambiar' : 'Subir'}
+            <input type="file" accept="image/*" data-sid="${sid}" data-kind="${kind}" class="photo-input">
+          </label>
+          ${dataUrl ? `<button class="photo-remove-btn" data-sid="${sid}" data-kind="${kind}" title="Quitar foto">✕</button>` : ''}
+        </div>
+      </div>`;
+  }
+
+  function cardHTML(s){
+    const photos = photoMap[s.id] || {};
+    return `
+      <div class="card day-${s.day}" data-id="${s.id}">
+        <div class="card-view">
+          <div class="card-head">
+            <div>
+              <h3>${escapeHtml(s.name)}</h3>
+              <div class="card-meta">${escapeHtml(s.grupo)} · ${escapeHtml(s.proyecto)}</div>
+            </div>
+            <span class="day-tag day-${s.day}">${s.day}</span>
+          </div>
+
+          <div class="photo-pair">
+            ${photoBoxHTML(s.id, 'alumno', 'Foto del alumno', photos.alumno)}
+            ${photoBoxHTML(s.id, 'robot', 'Foto del robot', photos.robot)}
+          </div>
+
+          <div class="stage-rail">${stageRailHTML(s)}</div>
+
+          <div class="notes-block">
+            <label for="notes-${s.id}">Notas de avance</label>
+            <textarea class="notes" id="notes-${s.id}" data-sid="${s.id}" placeholder="Qué hizo hoy, qué le falta…">${escapeHtml(s.notes || '')}</textarea>
+          </div>
+
+          <div class="card-foot">
+            <span>${fmtDate(s.updatedAt)}</span>
+            <span class="actions">
+              <button class="btn-text" data-action="edit" data-sid="${s.id}">Editar</button>
+              <button class="btn-text danger" data-action="delete" data-sid="${s.id}">Eliminar</button>
+            </span>
+          </div>
+        </div>
+      </div>`;
+  }
+
+  function renderSections(){
+    const filtered = activeFilter === "Todos" ? students : students.filter(s=>s.day===activeFilter);
+    if(filtered.length === 0){
+      sectionsEl.innerHTML = `<div class="empty-state">Todavía no hay alumnos cargados acá.</div>`;
+      return;
+    }
+    const byDay = {};
+    filtered.forEach(s => { (byDay[s.day] = byDay[s.day] || []).push(s); });
+    const days = Object.keys(byDay).sort((a,b)=> DAY_ORDER.indexOf(a) - DAY_ORDER.indexOf(b));
+
+    sectionsEl.innerHTML = days.map(day => `
+      <section class="day-section">
+        <div class="day-heading">
+          <h2>${day}</h2>
+          <span class="count">${byDay[day].length} ${byDay[day].length===1?'alumno':'alumnos'}</span>
+        </div>
+        <div class="cards-grid">${byDay[day].map(cardHTML).join('')}</div>
+      </section>
+    `).join('');
+
+    attachCardHandlers();
+  }
+
+  function attachCardHandlers(){
+    sectionsEl.querySelectorAll('.stage-step').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const sid = btn.dataset.sid;
+        const idx = parseInt(btn.dataset.stage, 10);
+        const s = students.find(x=>x.id===sid);
+        if(!s) return;
+        s.current = idx;
+        s.updatedAt = new Date().toISOString();
+        persistStudents();
+        renderStats();
+        renderSections();
+      });
+    });
+
+    sectionsEl.querySelectorAll('textarea.notes').forEach(area=>{
+      area.addEventListener('input', ()=>{
+        const sid = area.dataset.sid;
+        const s = students.find(x=>x.id===sid);
+        if(!s) return;
+        s.notes = area.value;
+        clearTimeout(saveTimers[sid]);
+        saveTimers[sid] = setTimeout(()=>{
+          s.updatedAt = new Date().toISOString();
+          persistStudents();
+        }, 500);
+      });
+    });
+
+    sectionsEl.querySelectorAll('.photo-input').forEach(input=>{
+      input.addEventListener('change', async (e)=>{
+        const file = e.target.files[0];
+        if(!file) return;
+        const sid = input.dataset.sid;
+        const kind = input.dataset.kind;
+        const s = students.find(x=>x.id===sid);
+        if(!s) return;
+        try{
+          const dataUrl = await compressImage(file, 480, 0.72);
+          await window.storage.set(`photo:${sid}:${kind}`, dataUrl, false);
+          photoMap[sid] = photoMap[sid] || { alumno:null, robot:null };
+          photoMap[sid][kind] = dataUrl;
+          if(kind === 'alumno') s.hasAlumnoPhoto = true;
+          if(kind === 'robot') s.hasRobotPhoto = true;
+          s.updatedAt = new Date().toISOString();
+          await persistStudents();
+          renderStats();
+          renderSections();
+        }catch(err){
+          console.error(err);
+          alert('No se pudo cargar esa foto. Probá con otra imagen.');
+        }
+      });
+    });
+
+    sectionsEl.querySelectorAll('.photo-remove-btn').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const sid = btn.dataset.sid;
+        const kind = btn.dataset.kind;
+        const s = students.find(x=>x.id===sid);
+        if(!s) return;
+        try{ await window.storage.delete(`photo:${sid}:${kind}`, false); }catch(e){}
+        if(photoMap[sid]) photoMap[sid][kind] = null;
+        if(kind === 'alumno') s.hasAlumnoPhoto = false;
+        if(kind === 'robot') s.hasRobotPhoto = false;
+        s.updatedAt = new Date().toISOString();
+        await persistStudents();
+        renderStats();
+        renderSections();
+      });
+    });
+
+    sectionsEl.querySelectorAll('[data-action="delete"]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const sid = btn.dataset.sid;
+        const s = students.find(x=>x.id===sid);
+        if(!s) return;
+        if(confirm(`¿Eliminar a ${s.name} del registro?`)){
+          try{ await window.storage.delete(`photo:${sid}:alumno`, false); }catch(e){}
+          try{ await window.storage.delete(`photo:${sid}:robot`, false); }catch(e){}
+          delete photoMap[sid];
+          students = students.filter(x=>x.id!==sid);
+          await persistStudents();
+          renderAll();
+        }
+      });
+    });
+
+    sectionsEl.querySelectorAll('[data-action="edit"]').forEach(btn=>{
+      btn.addEventListener('click', ()=> openEdit(btn.dataset.sid));
+    });
+  }
+
+  function openEdit(sid){
+    const s = students.find(x=>x.id===sid);
+    if(!s) return;
+    const cardEl = sectionsEl.querySelector(`.card[data-id="${sid}"] .card-view`);
+    cardEl.innerHTML = `
+      <div class="edit-grid">
+        <div class="full">
+          <label>Nombre</label>
+          <input class="e-name" value="${escapeHtml(s.name)}">
+        </div>
+        <div>
+          <label>Día</label>
+          <select class="e-day">${DAY_ORDER.slice(0,6).map(d=>`<option ${d===s.day?'selected':''}>${d}</option>`).join('')}</select>
+        </div>
+        <div>
+          <label>Grupo</label>
+          <input class="e-grupo" value="${escapeHtml(s.grupo)}">
+        </div>
+        <div class="full">
+          <label>Qué está construyendo</label>
+          <input class="e-proyecto" value="${escapeHtml(s.proyecto)}">
+        </div>
+      </div>
+      <div class="edit-actions">
+        <button class="btn-primary e-save">Guardar cambios</button>
+        <button class="btn-ghost e-cancel">Cancelar</button>
+      </div>`;
+    cardEl.querySelector('.e-save').addEventListener('click', async ()=>{
+      s.name = cardEl.querySelector('.e-name').value.trim() || s.name;
+      s.day = cardEl.querySelector('.e-day').value;
+      s.grupo = cardEl.querySelector('.e-grupo').value.trim();
+      s.proyecto = cardEl.querySelector('.e-proyecto').value.trim();
+      s.updatedAt = new Date().toISOString();
+      await persistStudents();
+      renderAll();
+    });
+    cardEl.querySelector('.e-cancel').addEventListener('click', renderSections);
+  }
+
+  async function renderAll(){
+    await preloadPhotos();
+    renderStats();
+    renderFilters();
+    renderSections();
+  }
+
+  // ---- add panel ----
+  const btnAdd = document.getElementById('btnAdd');
+  btnAdd.addEventListener('click', ()=> addPanel.classList.toggle('open'));
+  document.getElementById('btnCancel').addEventListener('click', ()=>{ addPanel.classList.remove('open'); clearForm(); });
+
+  function clearForm(){
+    document.getElementById('f-name').value = '';
+    document.getElementById('f-trabajo').value = '';
+    document.getElementById('f-custom-name').value = '';
+    fGroup.selectedIndex = 0;
+    fCustomWrap.style.display = 'none';
+  }
+
+  document.getElementById('btnSave').addEventListener('click', async ()=>{
+    const name = document.getElementById('f-name').value.trim();
+    const trabajo = document.getElementById('f-trabajo').value.trim();
+    if(!name){ alert('Completá el nombre del alumno.'); return; }
+
+    let day, grupo, proyecto, tipo;
+    if(fGroup.value === 'otro'){
+      const customName = document.getElementById('f-custom-name').value.trim() || 'Grupo nuevo';
+      const parts = customName.split('—').map(p=>p.trim());
+      day = DAY_ORDER.includes(parts[0]) ? parts[0] : 'Lunes';
+      grupo = parts[1] || customName;
+      tipo = 'kit';
+    } else {
+      const g = GROUPS.find(x=>x.key === fGroup.value) || GROUPS[0];
+      day = g.day; grupo = g.grupo; tipo = g.tipo;
+    }
+    proyecto = trabajo || (GROUPS.find(x=>x.key===fGroup.value)?.proyecto) || 'Sin especificar';
+
+    students.push({
+      id: uid(),
+      name, day, grupo, proyecto,
+      stages: STAGE_SETS[tipo] || STAGE_SETS.kit,
+      current: 0,
+      notes: '',
+      hasAlumnoPhoto: false,
+      hasRobotPhoto: false,
+      updatedAt: new Date().toISOString()
+    });
+    await persistStudents();
+    addPanel.classList.remove('open');
+    clearForm();
+    renderAll();
+  });
+
+  // ---- init ----
+  (async function init(){
+    students = await loadStudents();
+    renderAll();
+  })();
+})();
+</script>
+</body>
+</html>
