@@ -257,7 +257,7 @@
       <button class="btn-primary" id="btnSave">Guardar alumno</button>
       <button class="btn-ghost" id="btnCancel">Cancelar</button>
     </div>
-    <p class="hint">Las fotos se cargan después, desde la propia tarjeta del alumno. Todo se guarda en el sitio.</p>
+    <p class="hint">Las fotos se cargan después, desde la propia tarjeta del alumno. Todo se guarda automáticamente en tu navegador.</p>
   </div>
 
   <div id="sections"></div>
@@ -282,8 +282,8 @@
 
   const DAY_ORDER = ["Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo"];
 
-  let dbNS = null, assetsNS = null;
   let students = [];
+  let photoData = {}; // Guarda { idFoto: dataUrl }
   let activeFilter = "Todos";
   let saveTimers = {};
 
@@ -294,6 +294,7 @@
   const fGroup = document.getElementById('f-group');
   const fCustomWrap = document.getElementById('f-custom-wrap');
 
+  // Inicializar opciones de grupos
   GROUPS.forEach(g=>{
     const opt = document.createElement('option');
     opt.value = g.key;
@@ -308,35 +309,83 @@
     fCustomWrap.style.display = fGroup.value === 'otro' ? 'block' : 'none';
   });
 
-  function photoUrl(id){ return id ? ('/_blob/' + id) : null; }
+  /* ---------- PERSISTENCIA CON LOCALSTORAGE E INDEXEDDB ---------- */
 
-  async function initCapabilities(){
-    try{ dbNS = await window.claude.use('db'); }catch(e){ dbNS = null; }
-    try{ assetsNS = await window.claude.use('assets'); }catch(e){ assetsNS = null; }
-  }
-
-  async function loadStudentsFromDb(){
-    if(!dbNS) return [];
-    try{
-      const snap = await dbNS.collection('students').get();
-      return snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    }catch(e){ console.error(e); return []; }
-  }
-
-  async function addStudentDoc(data){
-    const ref = await dbNS.collection('students').add(data);
-    return ref.id;
-  }
-  async function updateStudentDoc(id, patch){
-    if(!dbNS) return;
-    try{ await dbNS.doc('students/'+id).update(patch); }catch(e){ console.error(e); }
-  }
-  async function deleteStudentDoc(id){
-    if(!dbNS) return;
-    try{ await dbNS.doc('students/'+id).delete(); }catch(e){ console.error(e); }
+  function initDB() {
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open("RoboticaClubDB", 1);
+      request.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains("photos")) {
+          db.createObjectStore("photos");
+        }
+      };
+      request.onsuccess = (e) => resolve(e.target.result);
+      request.onerror = (e) => reject(e.target.error);
+    });
   }
 
-  function compressImageToBlob(file, maxDim, quality){
+  async function savePhotoToStorage(id, dataUrl) {
+    if(!id) return;
+    photoData[id] = dataUrl;
+    try {
+      const db = await initDB();
+      const tx = db.transaction("photos", "readwrite");
+      tx.objectStore("photos").put(dataUrl, id);
+    } catch(e) {
+      console.error("Error guardando foto en IndexedDB", e);
+    }
+  }
+
+  async function deletePhotoFromStorage(id) {
+    if(!id) return;
+    delete photoData[id];
+    try {
+      const db = await initDB();
+      const tx = db.transaction("photos", "readwrite");
+      tx.objectStore("photos").delete(id);
+    } catch(e) {
+      console.error("Error eliminando foto de IndexedDB", e);
+    }
+  }
+
+  async function loadPhotosFromStorage() {
+    try {
+      const db = await initDB();
+      return new Promise((resolve) => {
+        const tx = db.transaction("photos", "readonly");
+        const store = tx.objectStore("photos");
+        const req = store.openCursor();
+        req.onsuccess = (e) => {
+          const cursor = e.target.result;
+          if (cursor) {
+            photoData[cursor.key] = cursor.value;
+            cursor.continue();
+          } else {
+            resolve();
+          }
+        };
+        req.onerror = () => resolve();
+      });
+    } catch(e) {
+      console.error("Error cargando fotos", e);
+    }
+  }
+
+  function saveStudentsToLocalStorage() {
+    localStorage.setItem('robotica_students', JSON.stringify(students));
+  }
+
+  function loadStudentsFromLocalStorage() {
+    const data = localStorage.getItem('robotica_students');
+    return data ? JSON.parse(data) : [];
+  }
+
+  function photoUrl(id){
+    return id && photoData[id] ? photoData[id] : null;
+  }
+
+  function compressImageToDataUrl(file, maxDim, quality){
     return new Promise((resolve, reject)=>{
       const reader = new FileReader();
       reader.onload = ()=>{
@@ -348,7 +397,7 @@
           const canvas = document.createElement('canvas');
           canvas.width = width; canvas.height = height;
           canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-          canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('toBlob failed')), 'image/jpeg', quality);
+          resolve(canvas.toDataURL('image/jpeg', quality));
         };
         img.onerror = reject;
         img.src = reader.result;
@@ -364,7 +413,6 @@
     return 'Actualizado ' + d.toLocaleDateString('es-AR', { day:'numeric', month:'short' });
   }
   function isFirstStage(name){ return /armado|diseño/i.test(name); }
-  function isProgStage(name){ return /program/i.test(name); }
   function escapeHtml(str){
     return String(str).replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[s]));
   }
@@ -503,7 +551,7 @@
         if(!s) return;
         s.current = idx;
         s.updatedAt = new Date().toISOString();
-        updateStudentDoc(sid, { current: idx, updatedAt: s.updatedAt });
+        saveStudentsToLocalStorage();
         renderStats();
         renderSections();
       });
@@ -518,8 +566,8 @@
         clearTimeout(saveTimers[sid]);
         saveTimers[sid] = setTimeout(()=>{
           s.updatedAt = new Date().toISOString();
-          updateStudentDoc(sid, { notes: s.notes, updatedAt: s.updatedAt });
-        }, 500);
+          saveStudentsToLocalStorage();
+        }, 300);
       });
     });
 
@@ -527,20 +575,22 @@
       input.addEventListener('change', async (e)=>{
         const file = e.target.files[0];
         if(!file) return;
-        if(!assetsNS || !dbNS){ alert('No se pudo conectar con el almacenamiento de este sitio.'); return; }
         const sid = input.dataset.sid;
         const kind = input.dataset.kind;
         const s = students.find(x=>x.id===sid);
         if(!s) return;
         const field = kind === 'alumno' ? 'alumnoPhotoId' : 'robotPhotoId';
         try{
-          const blob = await compressImageToBlob(file, 480, 0.72);
-          const result = await assetsNS.upload(blob, { type: 'image/jpeg' });
-          const oldId = s[field];
-          s[field] = result.id;
+          const dataUrl = await compressImageToDataUrl(file, 480, 0.72);
+          const photoId = 'img_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+          
+          if(s[field]) await deletePhotoFromStorage(s[field]);
+          
+          s[field] = photoId;
+          await savePhotoToStorage(photoId, dataUrl);
+          
           s.updatedAt = new Date().toISOString();
-          await updateStudentDoc(sid, { [field]: result.id, updatedAt: s.updatedAt });
-          if(oldId) assetsNS.delete(oldId).catch(()=>{});
+          saveStudentsToLocalStorage();
           renderStats();
           renderSections();
         }catch(err){
@@ -560,8 +610,8 @@
         const oldId = s[field];
         s[field] = null;
         s.updatedAt = new Date().toISOString();
-        await updateStudentDoc(sid, { [field]: null, updatedAt: s.updatedAt });
-        if(oldId && assetsNS) assetsNS.delete(oldId).catch(()=>{});
+        if(oldId) await deletePhotoFromStorage(oldId);
+        saveStudentsToLocalStorage();
         renderStats();
         renderSections();
       });
@@ -573,10 +623,10 @@
         const s = students.find(x=>x.id===sid);
         if(!s) return;
         if(confirm(`¿Eliminar a ${s.name} del registro?`)){
-          if(s.alumnoPhotoId && assetsNS) assetsNS.delete(s.alumnoPhotoId).catch(()=>{});
-          if(s.robotPhotoId && assetsNS) assetsNS.delete(s.robotPhotoId).catch(()=>{});
-          await deleteStudentDoc(sid);
+          if(s.alumnoPhotoId) await deletePhotoFromStorage(s.alumnoPhotoId);
+          if(s.robotPhotoId) await deletePhotoFromStorage(s.robotPhotoId);
           students = students.filter(x=>x.id!==sid);
+          saveStudentsToLocalStorage();
           renderAll();
         }
       });
@@ -614,13 +664,13 @@
         <button class="btn-primary e-save">Guardar cambios</button>
         <button class="btn-ghost e-cancel">Cancelar</button>
       </div>`;
-    cardEl.querySelector('.e-save').addEventListener('click', async ()=>{
+    cardEl.querySelector('.e-save').addEventListener('click', ()=>{
       s.name = cardEl.querySelector('.e-name').value.trim() || s.name;
       s.day = cardEl.querySelector('.e-day').value;
       s.grupo = cardEl.querySelector('.e-grupo').value.trim();
       s.proyecto = cardEl.querySelector('.e-proyecto').value.trim();
       s.updatedAt = new Date().toISOString();
-      await updateStudentDoc(sid, { name: s.name, day: s.day, grupo: s.grupo, proyecto: s.proyecto, updatedAt: s.updatedAt });
+      saveStudentsToLocalStorage();
       renderAll();
     });
     cardEl.querySelector('.e-cancel').addEventListener('click', renderSections);
@@ -644,11 +694,10 @@
     fCustomWrap.style.display = 'none';
   }
 
-  document.getElementById('btnSave').addEventListener('click', async ()=>{
+  document.getElementById('btnSave').addEventListener('click', ()=>{
     const name = document.getElementById('f-name').value.trim();
     const trabajo = document.getElementById('f-trabajo').value.trim();
     if(!name){ alert('Completá el nombre del alumno.'); return; }
-    if(!dbNS){ alert('No se pudo conectar con el almacenamiento de este sitio.'); return; }
 
     let day, grupo, proyecto, tipo;
     if(fGroup.value === 'otro'){
@@ -663,7 +712,9 @@
     }
     proyecto = trabajo || (GROUPS.find(x=>x.key===fGroup.value)?.proyecto) || 'Sin especificar';
 
+    const id = 'stu_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
     const data = {
+      id,
       name, day, grupo, proyecto,
       stages: STAGE_SETS[tipo] || STAGE_SETS.kit,
       current: 0,
@@ -673,30 +724,19 @@
       updatedAt: new Date().toISOString()
     };
 
-    try{
-      const id = await addStudentDoc(data);
-      students.push({ id, ...data });
-      addPanel.classList.remove('open');
-      clearForm();
-      renderAll();
-    }catch(e){
-      console.error(e);
-      alert('No se pudo guardar el alumno. Probá de nuevo.');
-    }
+    students.push(data);
+    saveStudentsToLocalStorage();
+    addPanel.classList.remove('open');
+    clearForm();
+    renderAll();
   });
 
   (async function init(){
-    await initCapabilities();
-    if(!dbNS){
-      sectionsEl.innerHTML = `<div class="empty-state">No se pudo conectar con el almacenamiento de este sitio. Abrí este sitio desde tu cuenta de Claude para que los datos se guarden.</div>`;
-      renderStats();
-      return;
-    }
-    students = await loadStudentsFromDb();
+    students = loadStudentsFromLocalStorage();
+    await loadPhotosFromStorage();
     renderAll();
   })();
 })();
-
 </script>
 </body>
 </html>
